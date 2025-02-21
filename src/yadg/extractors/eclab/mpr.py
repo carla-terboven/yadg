@@ -200,6 +200,7 @@ from .mpr_columns import (
     log_dtypes,
     extdev_dtypes,
 )
+from yadg.extractors import jsonize_orig_meta
 
 logger = logging.getLogger(__name__)
 
@@ -569,10 +570,19 @@ def extract(
     timezone: str,
     **kwargs: dict,
 ) -> DataTree:
-    file_magic = b"BIO-LOGIC MODULAR FILE\x1a                         \x00\x00\x00\x00"
     with open(fn, "rb") as mpr_file:
-        assert mpr_file.read(len(file_magic)) == file_magic, "invalid file magic"
         mpr = mpr_file.read()
+    return extract_mpr_bytes(mpr=mpr, timezone=timezone)
+
+
+def extract_mpr_bytes(
+    *,
+    mpr: bytes,
+    timezone: str,
+    **kwargs: dict,
+) -> DataTree:
+    file_magic = b"BIO-LOGIC MODULAR FILE\x1a                         \x00\x00\x00\x00"
+    assert mpr[: len(file_magic)] == file_magic, "invalid file magic"
     settings, params, ds, log, loop = process_modules(mpr)
     assert settings is not None, "no settings module"
     assert ds is not None, "no data module"
@@ -595,3 +605,14 @@ def extract(
         del ds.attrs["fulldate"]
     ds.attrs["original_metadata"] = metadata
     return DataTree(ds)
+
+
+def extract_data_tree(
+    *,
+    mpr: bytes,
+    timezone: str,
+    **kwargs: dict,
+) -> DataTree:
+    ret: DataTree = extract_mpr_bytes(mpr=mpr, timezone=timezone)
+    jsonize_orig_meta(ret)
+    return ret
