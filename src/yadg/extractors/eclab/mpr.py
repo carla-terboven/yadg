@@ -565,19 +565,14 @@ def process_modules(contents: bytes) -> tuple[dict, list, list, dict, dict]:
 
 from functools import singledispatch
 @singledispatch
-def extract(
-    *,
-    fn: str,
-    timezone: str,
-    **kwargs: dict,
-) -> DataTree:
+def extract(fn, *, timezone):
     logger.info("The selected extractor does not support the provided file type. "
                 "Please check the available extractors or enter a valid file path.")
 
 
-@extract.register
-def _(*,
-    fn: str,
+@extract.register(str)
+def _(fn: str,
+    *,
     timezone: str,
     **kwargs: dict,
 ) -> DataTree:
@@ -586,9 +581,9 @@ def _(*,
     return extract_raw_bytes(source=mpr, timezone=timezone)
 
 
-@extract.register
-def _(*,
-    fn: bytes,
+@extract.register(bytes)
+def _(fn: bytes,
+    *,
     timezone: str,
     **kwargs: dict,
 ) -> DataTree:
