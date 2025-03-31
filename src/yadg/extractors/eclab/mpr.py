@@ -563,17 +563,47 @@ def process_modules(contents: bytes) -> tuple[dict, list, list, dict, dict]:
     return settings, params, ds, log, loop
 
 
+from functools import singledispatch
+@singledispatch
 def extract(
     *,
     fn: str,
     timezone: str,
     **kwargs: dict,
 ) -> DataTree:
-    file_magic = b"BIO-LOGIC MODULAR FILE\x1a                         \x00\x00\x00\x00"
+    logger.info("The selected extractor does not support the provided file type. "
+                "Please check the available extractors or enter a valid file path.")
+
+
+@extract.register
+def _(*,
+    fn: str,
+    timezone: str,
+    **kwargs: dict,
+) -> DataTree:
     with open(fn, "rb") as mpr_file:
-        assert mpr_file.read(len(file_magic)) == file_magic, "invalid file magic"
         mpr = mpr_file.read()
-    settings, params, ds, log, loop = process_modules(mpr)
+    return extract_raw_bytes(source=mpr, timezone=timezone)
+
+
+@extract.register
+def _(*,
+    fn: bytes,
+    timezone: str,
+    **kwargs: dict,
+) -> DataTree:
+    return extract_raw_bytes(source=fn, timezone=timezone)
+
+
+def extract_raw_bytes(
+        *,
+        source: bytes,
+        timezone: str,
+        **kwargs: dict,
+) -> DataTree:
+    file_magic = b"BIO-LOGIC MODULAR FILE\x1a                         \x00\x00\x00\x00"
+    assert source[: len(file_magic)] == file_magic, "invalid file magic"
+    settings, params, ds, log, loop = process_modules(source)
     assert settings is not None, "no settings module"
     assert ds is not None, "no data module"
     # Arrange all the data into the correct format.

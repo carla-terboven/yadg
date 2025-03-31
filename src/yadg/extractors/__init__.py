@@ -88,6 +88,39 @@ def extract_from_path(
     return ret
 
 
+def extract_from_bytes(
+    source: bytes,
+    extractor: FileType,
+) -> DataTree:
+    """
+    Extracts data and metadata from the provided raw bytes using the supplied extractor.
+
+    The individual extractor functionality of yadg is called from here. The data is
+    always returned as a :class:`DataTree`. The ``original_metadata`` entries in
+    the returned objects are flattened using json serialisation. The returned objects
+    have a :func:`to_netcdf` as well as a :func:`to_dict` method, which can be used to
+    write the returned object into a file.
+    """
+
+    m = importlib.import_module(f"yadg.extractors.{extractor.filetype}")
+    func = getattr(m, "extract")
+
+    # Func should always return a xarray.DataTree
+    ret: DataTree = func(source=source, **vars(extractor))
+    jsonize_orig_meta(ret)
+
+    ret.attrs.update(
+        {
+            "yadg_provenance": "yadg extract",
+            "yadg_extract_date": dgutils.now(asstr=True),
+            "yadg_extract_Extractor": extractor.model_dump_json(exclude_none=True),
+        }
+    )
+    ret.attrs.update(dgutils.get_yadg_metadata())
+
+    return ret
+
+
 def jsonize_orig_meta(obj: DataTree):
     for k in obj:
         if isinstance(obj[k], DataTree):
