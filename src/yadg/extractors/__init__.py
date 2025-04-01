@@ -72,7 +72,7 @@ def extract_from_path(
     func = getattr(m, "extract")
 
     # Func should always return a xarray.DataTree
-    ret: DataTree = func(path, **vars(extractor))
+    ret: DataTree = func(fn=path, **vars(extractor))
     jsonize_orig_meta(ret)
 
     ret.attrs.update(
