@@ -44,8 +44,11 @@ import logging
 from xarray import Dataset, DataTree
 import xarray as xr
 import numpy as np
-
 from yadg import dgutils
+from pathlib import Path
+from yadg.extractors import get_extract_dispatch
+
+extract = get_extract_dispatch()
 
 
 logger = logging.getLogger(__name__)
@@ -88,20 +91,30 @@ def chromdata(jsdata: dict, uts: float) -> Dataset:
                 else:
                     species.add(peak["label"])
                 if "height" in peak:
+                    if peak["height"] is None:
+                        continue
                     raw["height"][peak["label"]] = (float(peak["height"]), 1.0)
                 if "area" in peak:
+                    if peak["area"] is None:
+                        continue
                     raw["area"][peak["label"]] = (float(peak["area"]), 0.01)
                 if "concentration" in peak:
+                    if peak["concentration"] is None:
+                        continue
                     raw["concentration"][peak["label"]] = (
                         float(peak["concentration"]),
                         float(peak["concentration"]) * 1e-3,
                     )
                 if "normalizedConcentration" in peak:
+                    if peak["normalizedConcentration"] is None:
+                        continue
                     raw["xout"][peak["label"]] = (
                         float(peak["normalizedConcentration"]),
                         float(peak["normalizedConcentration"]) * 1e-3,
                     )
                 if "top" in peak:
+                    if peak["top"] is None:
+                        continue
                     raw["retention time"][peak["label"]] = (float(peak["top"]), 0.01)
 
     valve = jsdata.get("annotations", {}).get("valcoPosition", None)
@@ -177,14 +190,15 @@ def chromtrace(jsdata: dict, uts: float) -> DataTree:
     return dt
 
 
-def extract(
+@extract.register(Path)
+def extract_from_path(
+    source: Path,
     *,
-    fn: str,
     encoding: str,
     timezone: str,
     **kwargs: dict,
 ) -> DataTree:
-    with open(fn, "r", encoding=encoding, errors="ignore") as infile:
+    with open(source, "r", encoding=encoding, errors="ignore") as infile:
         jsdata = json.load(infile)
     uts = dgutils.str_to_uts(timestamp=jsdata["runTimeStamp"], timezone=timezone)
     data = chromdata(jsdata, uts)

@@ -186,6 +186,8 @@ host address and an acquisition start timestamp in Microsoft OLE format.
 import logging
 from xarray import DataTree
 import numpy as np
+from pathlib import Path
+from yadg.extractors import get_extract_dispatch
 from yadg import dgutils
 from .techniques import (
     technique_params_dtypes,
@@ -202,6 +204,7 @@ from .mpr_columns import (
 )
 
 logger = logging.getLogger(__name__)
+extract = get_extract_dispatch()
 
 
 def process_settings(data: bytes, minver: str) -> tuple[dict, list]:
@@ -418,7 +421,7 @@ def process_data(
 
         if "control_V_I" in vals:
             icv = controls[Ns]
-            name = "control_I" if icv in {"I", "C"} else "control_V"  # f"control_{icv}"
+            name = "control_I" if icv in {"I", "C"} else "control_V"
             vals[name] = vals.pop("control_V_I")
             units[name] = "mA" if icv in {"I", "C"} else "V"
         devs = get_devs(vals=vals, units=units, Erange=Erange, Irange=Irange)
@@ -563,17 +566,37 @@ def process_modules(contents: bytes) -> tuple[dict, list, list, dict, dict]:
     return settings, params, ds, log, loop
 
 
-def extract(
+@extract.register(Path)
+def extract_from_path(
+    source: Path,
     *,
-    fn: str,
+    timezone: str,
+    **kwargs: dict,
+) -> DataTree:
+    with open(source, "rb") as mpr_file:
+        mpr_bytes = mpr_file.read()
+    return extract_raw_bytes(source=mpr_bytes, timezone=timezone)
+
+
+@extract.register(bytes)
+def extract_from_bytes(
+    source: bytes,
+    *,
+    timezone: str,
+    **kwargs: dict,
+) -> DataTree:
+    return extract_raw_bytes(source=source, timezone=timezone)
+
+
+def extract_raw_bytes(
+    *,
+    source: bytes,
     timezone: str,
     **kwargs: dict,
 ) -> DataTree:
     file_magic = b"BIO-LOGIC MODULAR FILE\x1a                         \x00\x00\x00\x00"
-    with open(fn, "rb") as mpr_file:
-        assert mpr_file.read(len(file_magic)) == file_magic, "invalid file magic"
-        mpr = mpr_file.read()
-    settings, params, ds, log, loop = process_modules(mpr)
+    assert source[: len(file_magic)] == file_magic, "invalid file magic"
+    settings, params, ds, log, loop = process_modules(source)
     assert settings is not None, "no settings module"
     assert ds is not None, "no data module"
     # Arrange all the data into the correct format.

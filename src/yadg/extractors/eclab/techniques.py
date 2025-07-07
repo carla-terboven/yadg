@@ -33,7 +33,7 @@ in :func:`get_resolution`.
 
 import numpy as np
 from math import sqrt
-from typing import Union, Any
+from typing import Any
 import bisect
 import logging
 
@@ -1513,6 +1513,8 @@ param_map = {
     "Set I/C": (
         ("I", 0),
         ("C", 1),
+        ("C x N", 2),
+        ("C / N", 3),
     ),
     "Apply I/C": (
         ("I", 0),
@@ -1521,9 +1523,7 @@ param_map = {
 }
 
 
-def param_from_key(
-    param: str, key: Union[int, str], to_str: bool = True
-) -> Union[str, float]:
+def param_from_key(param: str, key: int | str, to_str: bool = True) -> str | float:
     """
     Convert a supplied key of a certain parameter to its string or float value.
 
@@ -1546,7 +1546,7 @@ def param_from_key(
 
     Returns
     -------
-    key: Union[str, float, int]
+    key: str | float | int
         The key converted to the requested format.
 
     """

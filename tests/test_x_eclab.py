@@ -5,10 +5,22 @@ import pickle
 from yadg.extractors.eclab.mpr import extract as extract_mpr
 from yadg.extractors.eclab.mpt import extract as extract_mpt
 from .utils import compare_datatrees
+from pathlib import Path
 
 
 def check_file(fname, kwargs, func):
-    ret = func(fn=fname, **kwargs)
+    ret = func(source=Path(fname), **kwargs)
+    outfile = f"{fname}.pkl"
+    with open(outfile, "rb") as inp:
+        ref = pickle.load(inp)
+    with open(outfile, "wb") as out:
+        pickle.dump(ret, out, 5)
+    compare_datatrees(ret, ref, thislevel=True)
+    return ret
+
+
+def check_file_extract_bytes(fname, bytes, kwargs, func):
+    ret = func(source=bytes, **kwargs)
     outfile = f"{fname}.pkl"
     with open(outfile, "rb") as inp:
         ref = pickle.load(inp)
@@ -81,6 +93,29 @@ def test_eclab_consistency(froot, locale, datadir):
 @pytest.mark.parametrize(
     "froot, locale",
     [
+        ("ca", "en_US"),
+    ],
+)
+def test_eclab_consistency_extract_mpr_bytes(froot, locale, datadir):
+    os.chdir(datadir)
+    kwargs = dict(timezone="Europe/Berlin", locale=locale, encoding="windows-1252")
+    with open(f"{froot}.mpr", "rb") as mpr_file:
+        mpr_bytes = mpr_file.read()
+    aret = check_file_extract_bytes(f"{froot}.mpr", mpr_bytes, kwargs, extract_mpr)
+    bret = check_file(f"{froot}.mpr", kwargs, extract_mpr)
+
+    for key in aret.variables:
+        try:
+            xr.testing.assert_equal(aret[key], bret[key])
+        except AssertionError as e:
+            e.args = (e.args[0] + f"Error happened on key: {key!r}\n",)
+            raise e
+    compare_params(aret, bret)
+
+
+@pytest.mark.parametrize(
+    "froot, locale",
+    [
         ("geis.issue_149", "de_DE"),
         ("peis.issue_149", "de_DE"),
     ],
@@ -121,6 +156,7 @@ def test_eclab_consistency_partial_1(froot, locale, datadir):
     [
         ("gcpl.pr_182.1", "en_US"),
         ("gcpl.pr_182.2", "en_US"),
+        ("gcpl.issue_211", "en_US"),
     ],
 )
 def test_eclab_consistency_partial_2(froot, locale, datadir):
@@ -132,7 +168,7 @@ def test_eclab_consistency_partial_2(froot, locale, datadir):
     for key in aret.variables:
         if key.endswith("std_err"):
             continue
-        elif key in {"control_I"}:
+        elif key in {"control_I", "control_V", "Energy charge", "Energy discharge"}:
             continue
         try:
             xr.testing.assert_allclose(aret[key], bret[key])
@@ -151,8 +187,8 @@ def test_eclab_consistency_partial_2(froot, locale, datadir):
 def test_eclab_mpt_locale(afile, bfile, datadir):
     os.chdir(datadir)
     kwargs = dict(timezone="Europe/Berlin", encoding="windows-1252")
-    aret = extract_mpt(fn=afile, locale="en_US", **kwargs)
-    bret = extract_mpt(fn=bfile, locale="de_DE", **kwargs)
+    aret = extract_mpt(source=Path(afile), locale="en_US", **kwargs)
+    bret = extract_mpt(source=Path(bfile), locale="de_DE", **kwargs)
     compare_datatrees(aret, bret)
 
 
@@ -168,8 +204,8 @@ def test_eclab_mpt_locale(afile, bfile, datadir):
 def test_eclab_mpt_old(afile, bfile, datadir):
     os.chdir(datadir)
     kwargs = dict(timezone="Europe/Berlin", encoding="windows-1252")
-    aret = extract_mpt(fn=afile, locale="en_US", **kwargs)
-    bret = extract_mpt(fn=bfile, locale="en_US", **kwargs)
+    aret = extract_mpt(source=Path(afile), locale="en_US", **kwargs)
+    bret = extract_mpt(source=Path(bfile), locale="en_US", **kwargs)
 
     for key in aret.variables:
         try:

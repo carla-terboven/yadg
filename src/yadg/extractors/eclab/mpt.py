@@ -59,8 +59,11 @@ from xarray import DataTree
 from yadg import dgutils
 from .techniques import get_devs, param_from_key
 from .mpt_columns import column_units
+from pathlib import Path
+from yadg.extractors import get_extract_dispatch
 
 logger = logging.getLogger(__name__)
+extract = get_extract_dispatch()
 
 
 def process_settings(lines: list[str]) -> dict[str, str]:
@@ -284,7 +287,7 @@ def process_data(
 
         if "control_VI" in vals:
             icv = controls[Ns] if isinstance(controls, list) else controls
-            name = f"control_{icv}"
+            name = "control_I" if icv in {"I", "C"} else "control_V"
             vals[name] = vals.pop("control_VI")
             units[name] = "mA" if icv in {"I", "C"} else "V"
         devs = get_devs(vals=vals, units=units, Erange=Erange, Irange=Irange, devs=devs)
@@ -296,16 +299,17 @@ def process_data(
     return ds
 
 
-def extract(
+@extract.register(Path)
+def extract_from_path(
+    source: Path,
     *,
-    fn: str,
     encoding: str,
     locale: str,
     timezone: str,
     **kwargs: dict,
 ) -> DataTree:
     file_magic = "EC-Lab ASCII FILE\n"
-    with open(fn, "r", encoding=encoding) as mpt_file:
+    with open(source, "r", encoding=encoding) as mpt_file:
         assert mpt_file.read(len(file_magic)) == file_magic, "invalid file magic"
         mpt = mpt_file.read()
     lines = mpt.split("\n")
